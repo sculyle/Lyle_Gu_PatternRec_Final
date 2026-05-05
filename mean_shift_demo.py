@@ -139,6 +139,57 @@ plt.close()
 print("Saved: fig_ms_windows.png")
 
 
+# ── Figure parallel: All points shift at the same time ────────
+# Shows 2 representative points per cluster simultaneously, each
+# with its own window and arrow — answers "does it do one cluster
+# at a time?" (no — all 150 points run independently in parallel).
+
+bw_par = bw_auto   # same bandwidth as one-step figure for consistency
+
+# For each cluster, pick the 2 points with the largest one-step shift —
+# this guarantees the arrows will be long enough to see clearly.
+tracked_par = []
+tracked_par_labs = []
+for lab in sorted(set(ms.labels_)):
+    idx = np.where(ms.labels_ == lab)[0]
+    shifts = []
+    for i in idx:
+        inside = np.linalg.norm(X - X[i], axis=1) < bw_par
+        mean_i = X[inside].mean(axis=0) if inside.any() else X[i]
+        shifts.append(np.linalg.norm(mean_i - X[i]))
+    order = idx[np.argsort(shifts)[::-1]]   # largest shift first
+    tracked_par.append(order[0])
+    tracked_par.append(order[1])
+    tracked_par_labs.extend([lab, lab])
+
+fig, ax = plt.subplots(figsize=(7, 6))
+ax.set_aspect('equal', adjustable='datalim')
+base_scatter(ax, X)
+
+for pt_idx, lab in zip(tracked_par, tracked_par_labs):
+    color  = COLORS[lab % len(COLORS)]
+    pt     = X[pt_idx]
+    inside = np.linalg.norm(X - pt, axis=1) < bw_par
+    mean_pt = X[inside].mean(axis=0) if inside.any() else pt
+
+    ax.add_patch(plt.Circle(pt, bw_par, fill=False, color=color,
+                             linewidth=1.8, linestyle='--', zorder=3, alpha=0.85))
+    ax.scatter(*pt,      color=color, s=130, zorder=4,
+               edgecolors='black', linewidths=0.8)
+    ax.scatter(*mean_pt, color='red', s=180, marker='*', zorder=5)
+    ax.annotate('', xy=mean_pt, xytext=pt,
+                arrowprops=dict(arrowstyle='->', color=color, lw=2.2, alpha=0.9))
+
+ax.set_title("All Points Shift at the Same Time\n"
+             "(2 shown per cluster — all 150 run independently, no coordination)",
+             fontsize=12)
+no_ticks(ax)
+plt.tight_layout()
+plt.savefig(os.path.join(OUT_DIR, "fig_ms_parallel.png"), dpi=150, bbox_inches='tight')
+plt.close()
+print("Saved: fig_ms_parallel.png")
+
+
 # ── Figure 4: Convergence paths (color = which cluster) ───────
 
 rng        = np.random.RandomState(SEED)
