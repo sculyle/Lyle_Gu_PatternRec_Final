@@ -139,7 +139,7 @@ plt.close()
 print("Saved: fig_ms_windows.png")
 
 
-# ── Figure 4: Convergence paths ───────────────────────────────
+# ── Figure 4: Convergence paths (color = which cluster) ───────
 
 rng        = np.random.RandomState(SEED)
 sample_idx = rng.choice(len(X), size=20, replace=False)
@@ -148,16 +148,18 @@ fig, ax = plt.subplots(figsize=(6, 5))
 base_scatter(ax, X)
 
 for i in sample_idx:
+    color  = COLORS[ms.labels_[i] % len(COLORS)]
     traj_i = ms_trajectory(X, X[i].copy(), bw_good)
     if len(traj_i) < 2:
         continue
-    ax.plot(traj_i[:, 0], traj_i[:, 1], 'k-', alpha=0.3, linewidth=1.0, zorder=2)
+    ax.plot(traj_i[:, 0], traj_i[:, 1], '-', color=color,
+            alpha=0.55, linewidth=1.4, zorder=2)
     ax.annotate('', xy=traj_i[-1], xytext=traj_i[-2],
-                arrowprops=dict(arrowstyle='->', color='black', lw=1.2), zorder=3)
+                arrowprops=dict(arrowstyle='->', color=color, lw=1.5), zorder=3)
 
 ax.scatter(ms.cluster_centers_[:, 0], ms.cluster_centers_[:, 1],
            color='red', s=300, marker='*', zorder=5, label='Modes (density peaks)')
-ax.set_title("Repeat Until Convergence\n(every point climbs toward a density peak)", fontsize=12)
+ax.set_title("Every Point Climbs to a Mode\n(color = which cluster it ends in)", fontsize=12)
 ax.legend(fontsize=9)
 no_ticks(ax)
 plt.tight_layout()
