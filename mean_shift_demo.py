@@ -170,3 +170,98 @@ plt.close()
 print("Saved: fig_ms_5_bandwidth.png")
 
 print("\nDone. 5 figures saved.")
+
+
+# ── Figure 6: Iterative convergence snapshots ─────────────────
+# Uses a slightly smaller bandwidth (1.5x bw_auto) so convergence
+# takes ~6 iterations and the movement is visible across panels.
+
+bw_vis = bw_auto * 1.5
+
+ms_vis = MeanShift(bandwidth=bw_vis, bin_seeding=True)
+ms_vis.fit(X)
+labels_vis  = ms_vis.labels_
+centers_vis = ms_vis.cluster_centers_
+
+
+def ms_step(pts, X_orig, bw):
+    new_pts = np.zeros_like(pts)
+    for j, pt in enumerate(pts):
+        within = np.linalg.norm(X_orig - pt, axis=1) < bw
+        new_pts[j] = X_orig[within].mean(axis=0) if within.sum() > 0 else pt
+    return new_pts
+
+
+# Pick 8 representative tracked points per cluster
+rng2 = np.random.RandomState(SEED)
+tracked = []
+for lab in sorted(set(labels_vis)):
+    idx = np.where(labels_vis == lab)[0]
+    tracked.extend(rng2.choice(idx, size=min(8, len(idx)), replace=False))
+tracked = np.array(tracked)
+tracked_labels = labels_vis[tracked]
+
+snapshots = [X[tracked].copy()]
+pts_vis = X.copy()
+for _ in range(5):
+    pts_vis = ms_step(pts_vis, X, bw_vis)
+    snapshots.append(pts_vis[tracked].copy())
+
+shifts = [0.0] + [
+    np.max(np.linalg.norm(snapshots[i] - snapshots[i - 1], axis=1))
+    for i in range(1, len(snapshots))
+]
+
+pad = 1.2
+xlim6 = (X[:, 0].min() - pad, X[:, 0].max() + pad)
+ylim6 = (X[:, 1].min() - pad, X[:, 1].max() + pad)
+
+panel_info = [
+    (0, 'Iteration 0\n(starting positions)'),
+    (1, f'Iteration 1  —  shift = {shifts[1]:.2f}'),
+    (2, f'Iteration 2  —  shift = {shifts[2]:.2f}'),
+    (3, f'Iteration 3  —  shift = {shifts[3]:.3f}'),
+    (4, f'Iteration 4  —  shift = {shifts[4]:.4f}'),
+    (5, 'Converged (Iteration 6)\nshift < 0.001'),
+]
+
+fig, axes = plt.subplots(2, 3, figsize=(13, 8))
+fig.suptitle(f'Mean Shift Iterative Convergence  (h = {bw_vis:.2f})', fontsize=13, fontweight='bold')
+
+for ax, (snap_idx, title) in zip(axes.flat, panel_info):
+    ax.scatter(X[:, 0], X[:, 1], color='lightgrey', s=20, zorder=1, alpha=0.6)
+
+    snap = snapshots[snap_idx]
+
+    if snap_idx > 0:
+        prev = snapshots[snap_idx - 1]
+        for i, lab in enumerate(tracked_labels):
+            dx, dy = snap[i, 0] - prev[i, 0], snap[i, 1] - prev[i, 1]
+            if np.sqrt(dx ** 2 + dy ** 2) > 0.08:
+                ax.annotate('', xy=(snap[i, 0], snap[i, 1]), xytext=(prev[i, 0], prev[i, 1]),
+                            arrowprops=dict(arrowstyle='->', lw=1.0, alpha=0.5,
+                                            color=COLORS[lab % len(COLORS)]), zorder=2)
+
+    for lab in sorted(set(tracked_labels)):
+        mask = tracked_labels == lab
+        ax.scatter(snap[mask, 0], snap[mask, 1],
+                   color=COLORS[lab % len(COLORS)], s=90, zorder=3,
+                   edgecolors='white', linewidths=0.6)
+
+    if snap_idx == 5:
+        ax.scatter(centers_vis[:, 0], centers_vis[:, 1],
+                   color='red', s=250, marker='x', linewidths=2.5, zorder=5, label='Modes')
+        ax.legend(fontsize=9, loc='upper right')
+
+    ax.set_xlim(xlim6)
+    ax.set_ylim(ylim6)
+    ax.set_title(title, fontsize=10)
+    ax.set_xticks([])
+    ax.set_yticks([])
+
+plt.tight_layout()
+plt.savefig(os.path.join(OUT_DIR, "fig_ms_6_convergence_steps.png"), dpi=150, bbox_inches='tight')
+plt.close()
+print("Saved: fig_ms_6_convergence_steps.png")
+
+print("\nDone. 6 figures saved.")
