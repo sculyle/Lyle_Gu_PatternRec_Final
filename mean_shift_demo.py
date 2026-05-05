@@ -2,9 +2,10 @@
 Mean Shift Demo — Step-by-step teaching figures
 ECE 5363 Pattern Recognition, Project 5
 
-Generates 5 figures saved to the same directory as this script:
+Generates 6 figures saved to the same directory as this script:
   fig_ms_1_data.png        — raw unlabeled data
   fig_ms_2_mechanism.png   — one step: window, mean, shift
+  fig_ms_windows.png       — watch the window move across 4 iterations
   fig_ms_3_convergence.png — paths of 20 points converging to modes
   fig_ms_4_result.png      — final cluster assignments
   fig_ms_5_bandwidth.png   — effect of bandwidth (too small / good / too large)
@@ -20,58 +21,20 @@ from sklearn.datasets import make_blobs
 import os
 
 OUT_DIR = os.path.dirname(os.path.abspath(__file__))
-SEED = 42
-
-X, _ = make_blobs(n_samples=150, centers=3, cluster_std=0.8, random_state=SEED)
-bw_auto = estimate_bandwidth(X, quantile=0.2, random_state=SEED)
-bw_good = bw_auto * 2.8  # gives 3 well-separated clusters
-
-
-# ── Figure 1: Raw data ────────────────────────────────────────
-
-fig, ax = plt.subplots(figsize=(6, 5))
-ax.scatter(X[:, 0], X[:, 1], color='steelblue', s=40)
-ax.set_title("The Data\n(no labels — we don't know how many groups there are)", fontsize=12)
-ax.set_xticks([])
-ax.set_yticks([])
-plt.tight_layout()
-plt.savefig(os.path.join(OUT_DIR, "fig_ms_1_data.png"), dpi=150, bbox_inches='tight')
-plt.close()
-print("Saved: fig_ms_1_data.png")
+SEED    = 42
+GREY    = 'lightgrey'
+ORANGE  = '#DD8452'
+COLORS  = ['#4C72B0', '#DD8452', '#55A868', '#C44E52', '#8172B2']
 
 
-# ── Figure 2: One step of Mean Shift ─────────────────────────
-# Use bw_auto (smaller window) so the window is clearly visible
-
-point = X[np.argmax(X[:, 0])]  # rightmost point — on the edge of a blob
-dists = np.linalg.norm(X - point, axis=1)
-inside = dists < bw_auto
-mean_pt = X[inside].mean(axis=0)
-
-fig, ax = plt.subplots(figsize=(6, 5))
-ax.set_aspect('equal', adjustable='datalim')
-
-ax.scatter(X[:, 0], X[:, 1], color='lightgrey', s=35, zorder=1, label='All points')
-ax.scatter(X[inside, 0], X[inside, 1], color='#DD8452', s=45, zorder=2, label='Points inside window')
-ax.scatter(*point, color='black', s=120, zorder=4, label='Current point')
-ax.scatter(*mean_pt, color='red', s=200, marker='*', zorder=5, label='Mean  →  shift here')
-
-circle = plt.Circle(point, bw_auto, fill=False, color='black', linewidth=1.5, linestyle='--')
-ax.add_patch(circle)
-ax.annotate('', xy=mean_pt, xytext=point,
-            arrowprops=dict(arrowstyle='->', color='black', lw=2.5))
-
-ax.set_title("One Step: Place Window → Find Mean → Shift", fontsize=12)
-ax.legend(loc='upper left', fontsize=9)
-ax.set_xticks([])
-ax.set_yticks([])
-plt.tight_layout()
-plt.savefig(os.path.join(OUT_DIR, "fig_ms_2_mechanism.png"), dpi=150, bbox_inches='tight')
-plt.close()
-print("Saved: fig_ms_2_mechanism.png")
+def base_scatter(ax, X):
+    ax.scatter(X[:, 0], X[:, 1], color=GREY, s=32, zorder=1, alpha=0.9)
 
 
-# ── Figure 3: Convergence paths ───────────────────────────────
+def no_ticks(ax):
+    ax.set_xticks([])
+    ax.set_yticks([])
+
 
 def ms_trajectory(X, start, bandwidth, max_iter=50, tol=1e-4):
     path = [start.copy()]
@@ -88,39 +51,122 @@ def ms_trajectory(X, start, bandwidth, max_iter=50, tol=1e-4):
     return np.array(path)
 
 
-rng = np.random.RandomState(SEED)
-sample_idx = rng.choice(len(X), size=20, replace=False)
+X, _ = make_blobs(n_samples=150, centers=3, cluster_std=0.8, random_state=SEED)
+bw_auto = estimate_bandwidth(X, quantile=0.2, random_state=SEED)
+bw_good = bw_auto * 2.8   # gives 3 well-separated clusters
 
 ms = MeanShift(bandwidth=bw_good, bin_seeding=True)
 ms.fit(X)
 
+
+# ── Figure 1: Raw data ────────────────────────────────────────
+
 fig, ax = plt.subplots(figsize=(6, 5))
-ax.scatter(X[:, 0], X[:, 1], color='lightgrey', s=30, zorder=1)
+ax.scatter(X[:, 0], X[:, 1], color='steelblue', s=32, zorder=1)
+ax.set_title("The Data\n(no labels — how many groups are there?)", fontsize=12)
+no_ticks(ax)
+plt.tight_layout()
+plt.savefig(os.path.join(OUT_DIR, "fig_ms_1_data.png"), dpi=150, bbox_inches='tight')
+plt.close()
+print("Saved: fig_ms_1_data.png")
+
+
+# ── Figure 2: One step ─────────────────────────────────────────
+
+point   = X[np.argmax(X[:, 0])]
+inside  = np.linalg.norm(X - point, axis=1) < bw_auto
+mean_pt = X[inside].mean(axis=0)
+
+fig, ax = plt.subplots(figsize=(6, 5))
+ax.set_aspect('equal', adjustable='datalim')
+base_scatter(ax, X)
+ax.scatter(X[inside, 0], X[inside, 1], color=ORANGE, s=45, zorder=2, label='Inside window')
+ax.scatter(*point,   color='black', s=120, zorder=4, label='Current point')
+ax.scatter(*mean_pt, color='red',   s=200, marker='*', zorder=5, label='Mean  →  shift here')
+circle = plt.Circle(point, bw_auto, fill=False, color='black',
+                    linewidth=1.5, linestyle='--', zorder=3)
+ax.add_patch(circle)
+ax.annotate('', xy=mean_pt, xytext=point,
+            arrowprops=dict(arrowstyle='->', color='black', lw=2.5))
+ax.set_title("One Step: Place Window → Find Mean → Shift", fontsize=12)
+ax.legend(loc='upper left', fontsize=9)
+no_ticks(ax)
+plt.tight_layout()
+plt.savefig(os.path.join(OUT_DIR, "fig_ms_2_mechanism.png"), dpi=150, bbox_inches='tight')
+plt.close()
+print("Saved: fig_ms_2_mechanism.png")
+
+
+# ── Figure 3 (windows): Watch the window move ─────────────────
+# Tracks the single point farthest from its final mode so the
+# window visibly travels across 4 iterations before settling.
+
+labels  = ms.labels_
+centers = ms.cluster_centers_
+
+modes_per_point = centers[labels]
+dists_to_mode   = np.linalg.norm(X - modes_per_point, axis=1)
+track_idx       = np.argsort(dists_to_mode)[-3]
+
+traj       = ms_trajectory(X, X[track_idx].copy(), bw_auto)
+snap_iters = [0, 1, 2, min(3, len(traj) - 2)]
+
+fig, axes = plt.subplots(1, 4, figsize=(14, 4))
+fig.suptitle("Repeat the Same Step — Watch the Window Move",
+             fontsize=12, fontweight='bold')
+
+for ax, it in zip(axes, snap_iters):
+    pt      = traj[it]
+    inside  = np.linalg.norm(X - pt, axis=1) < bw_auto
+    mean_pt = X[inside].mean(axis=0) if inside.any() else pt
+
+    base_scatter(ax, X)
+    ax.scatter(X[inside, 0], X[inside, 1], color=ORANGE, s=45, zorder=2)
+    ax.scatter(*pt,      color='black', s=130, zorder=4)
+    ax.scatter(*mean_pt, color='red',   s=220, marker='*', zorder=5)
+    ax.add_patch(plt.Circle(pt, bw_auto, fill=False, color='black',
+                             linewidth=1.8, linestyle='--', zorder=3))
+    if np.linalg.norm(mean_pt - pt) > 0.05:
+        ax.annotate('', xy=mean_pt, xytext=pt,
+                    arrowprops=dict(arrowstyle='->', color='black', lw=2.2))
+    ax.set_title(f"Iteration {it}", fontsize=10)
+    no_ticks(ax)
+    ax.set_aspect('equal', adjustable='box')
+
+plt.tight_layout()
+plt.savefig(os.path.join(OUT_DIR, "fig_ms_windows.png"), dpi=150, bbox_inches='tight')
+plt.close()
+print("Saved: fig_ms_windows.png")
+
+
+# ── Figure 4: Convergence paths ───────────────────────────────
+
+rng        = np.random.RandomState(SEED)
+sample_idx = rng.choice(len(X), size=20, replace=False)
+
+fig, ax = plt.subplots(figsize=(6, 5))
+base_scatter(ax, X)
 
 for i in sample_idx:
-    traj = ms_trajectory(X, X[i].copy(), bw_good)
-    if len(traj) < 2:
+    traj_i = ms_trajectory(X, X[i].copy(), bw_good)
+    if len(traj_i) < 2:
         continue
-    ax.plot(traj[:, 0], traj[:, 1], 'k-', alpha=0.3, linewidth=1.0, zorder=2)
-    ax.annotate('', xy=traj[-1], xytext=traj[-2],
+    ax.plot(traj_i[:, 0], traj_i[:, 1], 'k-', alpha=0.3, linewidth=1.0, zorder=2)
+    ax.annotate('', xy=traj_i[-1], xytext=traj_i[-2],
                 arrowprops=dict(arrowstyle='->', color='black', lw=1.2), zorder=3)
 
 ax.scatter(ms.cluster_centers_[:, 0], ms.cluster_centers_[:, 1],
            color='red', s=300, marker='*', zorder=5, label='Modes (density peaks)')
-
 ax.set_title("Repeat Until Convergence\n(every point climbs toward a density peak)", fontsize=12)
 ax.legend(fontsize=9)
-ax.set_xticks([])
-ax.set_yticks([])
+no_ticks(ax)
 plt.tight_layout()
 plt.savefig(os.path.join(OUT_DIR, "fig_ms_3_convergence.png"), dpi=150, bbox_inches='tight')
 plt.close()
 print("Saved: fig_ms_3_convergence.png")
 
 
-# ── Figure 4: Final clusters ──────────────────────────────────
-
-COLORS = ['#4C72B0', '#DD8452', '#55A868', '#C44E52', '#8172B2']
+# ── Figure 5: Final clusters ──────────────────────────────────
 
 fig, ax = plt.subplots(figsize=(6, 5))
 for lab in sorted(set(ms.labels_)):
@@ -129,19 +175,17 @@ for lab in sorted(set(ms.labels_)):
                s=40, label=f'Cluster {lab + 1}')
 ax.scatter(ms.cluster_centers_[:, 0], ms.cluster_centers_[:, 1],
            color='red', s=200, marker='x', linewidths=2.5, zorder=5, label='Modes')
-
 n = len(ms.cluster_centers_)
 ax.set_title(f"Result: {n} Clusters Found — No K Specified", fontsize=12)
 ax.legend(fontsize=9)
-ax.set_xticks([])
-ax.set_yticks([])
+no_ticks(ax)
 plt.tight_layout()
 plt.savefig(os.path.join(OUT_DIR, "fig_ms_4_result.png"), dpi=150, bbox_inches='tight')
 plt.close()
 print("Saved: fig_ms_4_result.png")
 
 
-# ── Figure 5: Bandwidth sweep ─────────────────────────────────
+# ── Figure 6: Bandwidth sweep ─────────────────────────────────
 
 configs = [
     (bw_auto * 0.35, "Too Small"),
@@ -160,188 +204,12 @@ for ax, (bw, desc) in zip(axes, configs):
     ax.scatter(ms_b.cluster_centers_[:, 0], ms_b.cluster_centers_[:, 1],
                color='red', s=100, marker='x', linewidths=2, zorder=3)
     ax.set_title(f"h = {bw:.2f}  ({desc})\n{n} cluster{'s' if n != 1 else ''} found", fontsize=11)
-    ax.set_xticks([])
-    ax.set_yticks([])
+    no_ticks(ax)
 
 fig.suptitle("The Only Parameter: Bandwidth (h)", fontsize=13, fontweight='bold')
 plt.tight_layout()
 plt.savefig(os.path.join(OUT_DIR, "fig_ms_5_bandwidth.png"), dpi=150, bbox_inches='tight')
 plt.close()
 print("Saved: fig_ms_5_bandwidth.png")
-
-print("\nDone. 5 figures saved.")
-
-
-# ── Figure 6: All windows shifting together ───────────────────
-# Shows 3 representative points per cluster with their radius-h windows
-# and arrows indicating where each window's mean is, across 3 iterations.
-
-def ms_step_all(pts, X_orig, bw):
-    new_pts = np.zeros_like(pts)
-    for j, pt in enumerate(pts):
-        within = np.linalg.norm(X_orig - pt, axis=1) < bw
-        new_pts[j] = X_orig[within].mean(axis=0) if within.sum() > 0 else pt
-    return new_pts
-
-
-# Pick 3 representative points per cluster (spread across the cluster)
-tracked_w = []
-for lab in sorted(set(ms.labels_)):
-    idx = np.where(ms.labels_ == lab)[0]
-    sorted_by_x = idx[np.argsort(X[idx, 0])]
-    tracked_w.extend([sorted_by_x[0], sorted_by_x[len(sorted_by_x) // 2], sorted_by_x[-1]])
-tracked_w = np.array(tracked_w)
-tracked_w_labels = ms.labels_[tracked_w]
-
-all_pts_w = [X.copy()]
-pts_w = X.copy()
-for _ in range(3):
-    pts_w = ms_step_all(pts_w, X, bw_good)
-    all_pts_w.append(pts_w.copy())
-
-pad_w = 1.5
-xlim_w = (X[:, 0].min() - pad_w, X[:, 0].max() + pad_w)
-ylim_w = (X[:, 1].min() - pad_w, X[:, 1].max() + pad_w)
-
-iter_labels_w = [
-    f'Iteration 0  (h = {bw_good:.2f})',
-    f'Iteration 1  —  shift = {np.max(np.linalg.norm(all_pts_w[1][tracked_w] - all_pts_w[0][tracked_w], axis=1)):.2f}',
-    f'Iteration 2  —  shift = {np.max(np.linalg.norm(all_pts_w[2][tracked_w] - all_pts_w[1][tracked_w], axis=1)):.3f}',
-]
-
-fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-fig.suptitle('Mean Shift: All Windows Shifting Together', fontsize=13, fontweight='bold')
-
-for col, ax in enumerate(axes):
-    cur_pts = all_pts_w[col]
-    nxt_pts = all_pts_w[col + 1]
-
-    ax.scatter(X[:, 0], X[:, 1], color='lightgrey', s=20, zorder=1, alpha=0.5)
-
-    for t_idx, lab in zip(tracked_w, tracked_w_labels):
-        color = COLORS[lab % len(COLORS)]
-        cx, cy = cur_pts[t_idx]
-        nx, ny = nxt_pts[t_idx]
-
-        circle = plt.Circle((cx, cy), bw_good, fill=True,
-                             facecolor=color, alpha=0.08,
-                             edgecolor=color, linewidth=1.5,
-                             linestyle='--', zorder=2)
-        ax.add_patch(circle)
-
-        if np.sqrt((nx - cx) ** 2 + (ny - cy) ** 2) > 0.05:
-            ax.annotate('', xy=(nx, ny), xytext=(cx, cy),
-                        arrowprops=dict(arrowstyle='->', color=color,
-                                        lw=2.0, alpha=0.9), zorder=4)
-
-        ax.scatter(cx, cy, color=color, s=100, zorder=5,
-                   edgecolors='white', linewidths=0.8)
-
-    ax.set_xlim(xlim_w)
-    ax.set_ylim(ylim_w)
-    ax.set_title(iter_labels_w[col], fontsize=11)
-    ax.set_xticks([])
-    ax.set_yticks([])
-    ax.set_aspect('equal', adjustable='box')
-
-plt.tight_layout()
-plt.savefig(os.path.join(OUT_DIR, "fig_ms_windows.png"), dpi=150, bbox_inches='tight')
-plt.close()
-print("Saved: fig_ms_windows.png")
-
-print("\nDone. 7 figures saved.")
-
-
-# ── Figure 7: Iterative convergence snapshots ─────────────────
-# Uses a slightly smaller bandwidth (1.5x bw_auto) so convergence
-# takes ~6 iterations and the movement is visible across panels.
-
-bw_vis = bw_auto * 1.5
-
-ms_vis = MeanShift(bandwidth=bw_vis, bin_seeding=True)
-ms_vis.fit(X)
-labels_vis  = ms_vis.labels_
-centers_vis = ms_vis.cluster_centers_
-
-
-def ms_step(pts, X_orig, bw):
-    new_pts = np.zeros_like(pts)
-    for j, pt in enumerate(pts):
-        within = np.linalg.norm(X_orig - pt, axis=1) < bw
-        new_pts[j] = X_orig[within].mean(axis=0) if within.sum() > 0 else pt
-    return new_pts
-
-
-# Pick 8 representative tracked points per cluster
-rng2 = np.random.RandomState(SEED)
-tracked = []
-for lab in sorted(set(labels_vis)):
-    idx = np.where(labels_vis == lab)[0]
-    tracked.extend(rng2.choice(idx, size=min(8, len(idx)), replace=False))
-tracked = np.array(tracked)
-tracked_labels = labels_vis[tracked]
-
-snapshots = [X[tracked].copy()]
-pts_vis = X.copy()
-for _ in range(5):
-    pts_vis = ms_step(pts_vis, X, bw_vis)
-    snapshots.append(pts_vis[tracked].copy())
-
-shifts = [0.0] + [
-    np.max(np.linalg.norm(snapshots[i] - snapshots[i - 1], axis=1))
-    for i in range(1, len(snapshots))
-]
-
-pad = 1.2
-xlim6 = (X[:, 0].min() - pad, X[:, 0].max() + pad)
-ylim6 = (X[:, 1].min() - pad, X[:, 1].max() + pad)
-
-panel_info = [
-    (0, 'Iteration 0\n(starting positions)'),
-    (1, f'Iteration 1  —  shift = {shifts[1]:.2f}'),
-    (2, f'Iteration 2  —  shift = {shifts[2]:.2f}'),
-    (3, f'Iteration 3  —  shift = {shifts[3]:.3f}'),
-    (4, f'Iteration 4  —  shift = {shifts[4]:.4f}'),
-    (5, 'Converged (Iteration 6)\nshift < 0.001'),
-]
-
-fig, axes = plt.subplots(2, 3, figsize=(13, 8))
-fig.suptitle(f'Mean Shift Iterative Convergence  (h = {bw_vis:.2f})', fontsize=13, fontweight='bold')
-
-for ax, (snap_idx, title) in zip(axes.flat, panel_info):
-    ax.scatter(X[:, 0], X[:, 1], color='lightgrey', s=20, zorder=1, alpha=0.6)
-
-    snap = snapshots[snap_idx]
-
-    if snap_idx > 0:
-        prev = snapshots[snap_idx - 1]
-        for i, lab in enumerate(tracked_labels):
-            dx, dy = snap[i, 0] - prev[i, 0], snap[i, 1] - prev[i, 1]
-            if np.sqrt(dx ** 2 + dy ** 2) > 0.08:
-                ax.annotate('', xy=(snap[i, 0], snap[i, 1]), xytext=(prev[i, 0], prev[i, 1]),
-                            arrowprops=dict(arrowstyle='->', lw=1.0, alpha=0.5,
-                                            color=COLORS[lab % len(COLORS)]), zorder=2)
-
-    for lab in sorted(set(tracked_labels)):
-        mask = tracked_labels == lab
-        ax.scatter(snap[mask, 0], snap[mask, 1],
-                   color=COLORS[lab % len(COLORS)], s=90, zorder=3,
-                   edgecolors='white', linewidths=0.6)
-
-    if snap_idx == 5:
-        ax.scatter(centers_vis[:, 0], centers_vis[:, 1],
-                   color='red', s=250, marker='x', linewidths=2.5, zorder=5, label='Modes')
-        ax.legend(fontsize=9, loc='upper right')
-
-    ax.set_xlim(xlim6)
-    ax.set_ylim(ylim6)
-    ax.set_title(title, fontsize=10)
-    ax.set_xticks([])
-    ax.set_yticks([])
-
-plt.tight_layout()
-plt.savefig(os.path.join(OUT_DIR, "fig_ms_6_convergence_steps.png"), dpi=150, bbox_inches='tight')
-plt.close()
-print("Saved: fig_ms_6_convergence_steps.png")
 
 print("\nDone. 6 figures saved.")
