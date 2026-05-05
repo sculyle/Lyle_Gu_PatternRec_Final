@@ -172,7 +172,87 @@ print("Saved: fig_ms_5_bandwidth.png")
 print("\nDone. 5 figures saved.")
 
 
-# ── Figure 6: Iterative convergence snapshots ─────────────────
+# ── Figure 6: All windows shifting together ───────────────────
+# Shows 3 representative points per cluster with their radius-h windows
+# and arrows indicating where each window's mean is, across 3 iterations.
+
+def ms_step_all(pts, X_orig, bw):
+    new_pts = np.zeros_like(pts)
+    for j, pt in enumerate(pts):
+        within = np.linalg.norm(X_orig - pt, axis=1) < bw
+        new_pts[j] = X_orig[within].mean(axis=0) if within.sum() > 0 else pt
+    return new_pts
+
+
+# Pick 3 representative points per cluster (spread across the cluster)
+tracked_w = []
+for lab in sorted(set(ms.labels_)):
+    idx = np.where(ms.labels_ == lab)[0]
+    sorted_by_x = idx[np.argsort(X[idx, 0])]
+    tracked_w.extend([sorted_by_x[0], sorted_by_x[len(sorted_by_x) // 2], sorted_by_x[-1]])
+tracked_w = np.array(tracked_w)
+tracked_w_labels = ms.labels_[tracked_w]
+
+all_pts_w = [X.copy()]
+pts_w = X.copy()
+for _ in range(3):
+    pts_w = ms_step_all(pts_w, X, bw_good)
+    all_pts_w.append(pts_w.copy())
+
+pad_w = 1.5
+xlim_w = (X[:, 0].min() - pad_w, X[:, 0].max() + pad_w)
+ylim_w = (X[:, 1].min() - pad_w, X[:, 1].max() + pad_w)
+
+iter_labels_w = [
+    f'Iteration 0  (h = {bw_good:.2f})',
+    f'Iteration 1  —  shift = {np.max(np.linalg.norm(all_pts_w[1][tracked_w] - all_pts_w[0][tracked_w], axis=1)):.2f}',
+    f'Iteration 2  —  shift = {np.max(np.linalg.norm(all_pts_w[2][tracked_w] - all_pts_w[1][tracked_w], axis=1)):.3f}',
+]
+
+fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+fig.suptitle('Mean Shift: All Windows Shifting Together', fontsize=13, fontweight='bold')
+
+for col, ax in enumerate(axes):
+    cur_pts = all_pts_w[col]
+    nxt_pts = all_pts_w[col + 1]
+
+    ax.scatter(X[:, 0], X[:, 1], color='lightgrey', s=20, zorder=1, alpha=0.5)
+
+    for t_idx, lab in zip(tracked_w, tracked_w_labels):
+        color = COLORS[lab % len(COLORS)]
+        cx, cy = cur_pts[t_idx]
+        nx, ny = nxt_pts[t_idx]
+
+        circle = plt.Circle((cx, cy), bw_good, fill=True,
+                             facecolor=color, alpha=0.08,
+                             edgecolor=color, linewidth=1.5,
+                             linestyle='--', zorder=2)
+        ax.add_patch(circle)
+
+        if np.sqrt((nx - cx) ** 2 + (ny - cy) ** 2) > 0.05:
+            ax.annotate('', xy=(nx, ny), xytext=(cx, cy),
+                        arrowprops=dict(arrowstyle='->', color=color,
+                                        lw=2.0, alpha=0.9), zorder=4)
+
+        ax.scatter(cx, cy, color=color, s=100, zorder=5,
+                   edgecolors='white', linewidths=0.8)
+
+    ax.set_xlim(xlim_w)
+    ax.set_ylim(ylim_w)
+    ax.set_title(iter_labels_w[col], fontsize=11)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_aspect('equal', adjustable='box')
+
+plt.tight_layout()
+plt.savefig(os.path.join(OUT_DIR, "fig_ms_windows.png"), dpi=150, bbox_inches='tight')
+plt.close()
+print("Saved: fig_ms_windows.png")
+
+print("\nDone. 7 figures saved.")
+
+
+# ── Figure 7: Iterative convergence snapshots ─────────────────
 # Uses a slightly smaller bandwidth (1.5x bw_auto) so convergence
 # takes ~6 iterations and the movement is visible across panels.
 
