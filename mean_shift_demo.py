@@ -101,12 +101,7 @@ print("Saved: fig_ms_2_mechanism.png")
 # Tracks the single point farthest from its final mode so the
 # window visibly travels across 4 iterations before settling.
 
-labels  = ms.labels_
-centers = ms.cluster_centers_
-
-modes_per_point = centers[labels]
-dists_to_mode   = np.linalg.norm(X - modes_per_point, axis=1)
-track_idx       = np.argsort(dists_to_mode)[-3]
+track_idx  = np.argmax(X[:, 0])   # same starting point as the one-step figure
 
 traj       = ms_trajectory(X, X[track_idx].copy(), bw_auto)
 snap_iters = [0, 1, 2, min(3, len(traj) - 2)]
