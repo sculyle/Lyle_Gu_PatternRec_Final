@@ -109,7 +109,9 @@ track_per_cluster = []
 for lab in sorted(set(ms.labels_)):
     idx = np.where(ms.labels_ == lab)[0]
     dists = np.linalg.norm(X[idx] - ms.cluster_centers_[lab], axis=1)
-    track_per_cluster.append(idx[np.argmax(dists)])
+    # 75th percentile: clearly inside the cluster but still far enough to show movement
+    p75 = idx[np.argsort(dists)[int(len(idx) * 0.75)]]
+    track_per_cluster.append(p75)
 
 trajs = [ms_trajectory(X, X[t].copy(), bw_auto) for t in track_per_cluster]
 
@@ -137,10 +139,10 @@ for ax, snap, title in zip(axes, panel_snaps, panel_titles):
         color = COLORS[lab % len(COLORS)]
 
         if snap is None:                        # converged panel
-            final = traj[-1]
-            ax.scatter(*final, color=color, s=140, zorder=4,
+            mode = ms.cluster_centers_[lab]     # authoritative mode position
+            ax.scatter(*mode, color=color, s=140, zorder=4,
                        edgecolors='black', linewidths=0.8)
-            ax.scatter(*final, color='red', s=320, marker='*', zorder=5)
+            ax.scatter(*mode, color='red', s=320, marker='*', zorder=5)
         else:
             it      = min(snap, len(traj) - 1)
             pt      = traj[it]
