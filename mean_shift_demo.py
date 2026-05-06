@@ -170,6 +170,89 @@ plt.close()
 print("Saved: fig_ms_windows.png")
 
 
+# ── Figure: Same mode regardless of starting position ─────────
+# Two panels — left: fresh single cluster, right: one of the 3 existing
+# clusters zoomed in. Both show 8 starting points spread around the
+# perimeter, each with an arrow to the mode, proving they all land
+# in the same place regardless of where they began.
+
+def angular_starts(X_pts, center, n=8):
+    """Return one point per angular sector (farthest from center in each)."""
+    angles = np.arctan2(X_pts[:, 1] - center[1], X_pts[:, 0] - center[0])
+    pts = []
+    for i in range(n):
+        lo = -np.pi + i * (2 * np.pi / n)
+        hi = lo + (2 * np.pi / n)
+        mask = (angles >= lo) & (angles < hi)
+        if mask.any():
+            dists = np.linalg.norm(X_pts[mask] - center, axis=1)
+            pts.append(X_pts[mask][np.argmax(dists)])
+    return pts
+
+PT_COLORS = ['#4C72B0', '#DD8452', '#55A868', '#C44E52',
+             '#8172B2', '#937860', '#DA8BC3', '#64B5CD']
+
+# Fresh single-cluster dataset
+X_one, _ = make_blobs(n_samples=60, centers=[[0, 0]],
+                      cluster_std=1.0, random_state=SEED + 1)
+bw_one  = estimate_bandwidth(X_one, quantile=0.35, random_state=SEED)
+mode_one = MeanShift(bandwidth=bw_one).fit(X_one).cluster_centers_[0]
+
+# Zoom into the most spread existing cluster
+spread   = [X[ms.labels_ == lab].std() for lab in range(len(ms.cluster_centers_))]
+zoom_lab = int(np.argmax(spread))
+mode_z   = ms.cluster_centers_[zoom_lab]
+pad_z    = 3.5
+xlim_z   = (mode_z[0] - pad_z, mode_z[0] + pad_z)
+ylim_z   = (mode_z[1] - pad_z, mode_z[1] + pad_z)
+
+starts_one  = angular_starts(X_one, mode_one)
+starts_zoom = angular_starts(X[ms.labels_ == zoom_lab], mode_z)
+
+fig, axes = plt.subplots(1, 2, figsize=(11, 5))
+fig.suptitle("Different Starting Positions — Same Mode",
+             fontsize=12, fontweight='bold')
+
+panels = [
+    dict(X_bg=X_one, X_traj=X_one, bw=bw_one,
+         starts=starts_one, mode=mode_one,
+         xlim=None, title="Fresh single cluster"),
+    dict(X_bg=X,    X_traj=X,    bw=bw_auto,
+         starts=starts_zoom, mode=mode_z,
+         xlim=(xlim_z, ylim_z),
+         title="One cluster from the 3-cluster data\n(zoomed in)"),
+]
+
+for ax, p in zip(axes, panels):
+    ax.scatter(p['X_bg'][:, 0], p['X_bg'][:, 1],
+               color=GREY, s=32, zorder=1, alpha=0.9)
+
+    for i, start in enumerate(p['starts']):
+        color = PT_COLORS[i % len(PT_COLORS)]
+        traj  = ms_trajectory(p['X_traj'], start.copy(), p['bw'])
+        ax.scatter(*start, color=color, s=90, zorder=4,
+                   edgecolors='black', linewidths=0.5)
+        if np.linalg.norm(traj[-1] - start) > 0.05:
+            ax.annotate('', xy=traj[-1], xytext=start,
+                        arrowprops=dict(arrowstyle='->', color=color,
+                                        lw=1.8, alpha=0.85))
+
+    ax.scatter(*p['mode'], color='red', s=380, marker='*', zorder=5)
+    if p['xlim']:
+        ax.set_xlim(p['xlim'][0])
+        ax.set_ylim(p['xlim'][1])
+        ax.set_aspect('equal', adjustable='box')
+    else:
+        ax.set_aspect('equal', adjustable='datalim')
+    ax.set_title(p['title'], fontsize=10)
+    no_ticks(ax)
+
+plt.tight_layout()
+plt.savefig(os.path.join(OUT_DIR, "fig_ms_single_mode.png"), dpi=150, bbox_inches='tight')
+plt.close()
+print("Saved: fig_ms_single_mode.png")
+
+
 # ── Figure parallel: All points shift at the same time ────────
 # Shows 2 representative points per cluster simultaneously, each
 # with its own window and arrow — answers "does it do one cluster
