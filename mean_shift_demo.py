@@ -101,32 +101,66 @@ print("Saved: fig_ms_2_mechanism.png")
 # Tracks the single point farthest from its final mode so the
 # window visibly travels across 4 iterations before settling.
 
-track_idx  = np.argmax(X[:, 0])   # same starting point as the one-step figure
+# One tracked point per cluster, each starting at the cluster's edge
+# (farthest from its mode). Shows all three windows moving in parallel
+# and converging to three distinct modes — that's how K is determined.
 
-traj       = ms_trajectory(X, X[track_idx].copy(), bw_auto)
-snap_iters = [0, 1, 2, min(3, len(traj) - 2)]
+track_per_cluster = []
+for lab in sorted(set(ms.labels_)):
+    idx = np.where(ms.labels_ == lab)[0]
+    dists = np.linalg.norm(X[idx] - ms.cluster_centers_[lab], axis=1)
+    track_per_cluster.append(idx[np.argmax(dists)])
+
+trajs = [ms_trajectory(X, X[t].copy(), bw_auto) for t in track_per_cluster]
+
+# Consistent square axes so circles render round in every panel
+margin = 2.0
+x_c    = (X[:, 0].min() + X[:, 0].max()) / 2
+y_c    = (X[:, 1].min() + X[:, 1].max()) / 2
+half   = max(X[:, 0].max() - X[:, 0].min(),
+             X[:, 1].max() - X[:, 1].min()) / 2 + margin
+xlim   = (x_c - half, x_c + half)
+ylim   = (y_c - half, y_c + half)
+
+panel_snaps  = [0, 1, 2, None]   # None = show converged state
+panel_titles = ['Iteration 0', 'Iteration 1', 'Iteration 2',
+                f'Converged — {len(trajs)} modes found\n= {len(trajs)} clusters']
 
 fig, axes = plt.subplots(1, 4, figsize=(14, 4))
-fig.suptitle("Repeat the Same Step — Watch the Window Move",
+fig.suptitle("Three Windows — Three Paths — Three Clusters",
              fontsize=12, fontweight='bold')
 
-for ax, it in zip(axes, snap_iters):
-    pt      = traj[it]
-    inside  = np.linalg.norm(X - pt, axis=1) < bw_auto
-    mean_pt = X[inside].mean(axis=0) if inside.any() else pt
-
+for ax, snap, title in zip(axes, panel_snaps, panel_titles):
     base_scatter(ax, X)
-    ax.scatter(X[inside, 0], X[inside, 1], color=ORANGE, s=45, zorder=2)
-    ax.scatter(*pt,      color='black', s=130, zorder=4)
-    ax.scatter(*mean_pt, color='red',   s=220, marker='*', zorder=5)
-    ax.add_patch(plt.Circle(pt, bw_auto, fill=False, color='black',
-                             linewidth=1.8, linestyle='--', zorder=3))
-    if np.linalg.norm(mean_pt - pt) > 0.05:
-        ax.annotate('', xy=mean_pt, xytext=pt,
-                    arrowprops=dict(arrowstyle='->', color='black', lw=2.2))
-    ax.set_title(f"Iteration {it}", fontsize=10)
-    no_ticks(ax)
+
+    for lab, traj in enumerate(trajs):
+        color = COLORS[lab % len(COLORS)]
+
+        if snap is None:                        # converged panel
+            final = traj[-1]
+            ax.scatter(*final, color=color, s=140, zorder=4,
+                       edgecolors='black', linewidths=0.8)
+            ax.scatter(*final, color='red', s=320, marker='*', zorder=5)
+        else:
+            it      = min(snap, len(traj) - 1)
+            pt      = traj[it]
+            inside  = np.linalg.norm(X - pt, axis=1) < bw_auto
+            mean_pt = X[inside].mean(axis=0) if inside.any() else pt
+
+            ax.add_patch(plt.Circle(pt, bw_auto, fill=False, color=color,
+                                    linewidth=1.8, linestyle='--', zorder=3))
+            ax.scatter(*pt,      color=color, s=130, zorder=4,
+                       edgecolors='black', linewidths=0.8)
+            ax.scatter(*mean_pt, color='red', s=220, marker='*', zorder=5)
+            if np.linalg.norm(mean_pt - pt) > 0.05:
+                ax.annotate('', xy=mean_pt, xytext=pt,
+                            arrowprops=dict(arrowstyle='->', color=color, lw=2.2))
+
+    ax.set_title(title, fontsize=10)
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
     ax.set_aspect('equal', adjustable='box')
+    no_ticks(ax)
 
 plt.tight_layout()
 plt.savefig(os.path.join(OUT_DIR, "fig_ms_windows.png"), dpi=150, bbox_inches='tight')
